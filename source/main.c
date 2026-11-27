@@ -17,9 +17,9 @@ int uang = 100;
 
 const char* namaAlat[] = {"CANGKUL", "BIBIT (10G)", "SIRAM", "PANEN"};
 
-// Ambil indeks tile 16x16 dari sheet berdasarkan kolom & baris (dalam satuan 16px)
 static u16 ambilTileIndex16(int sheetWidthPx, int col16, int row16) {
     int tilesPerRow = sheetWidthPx / 8;
+    if (tilesPerRow <= 0) tilesPerRow = 16;
     int baseTile = (row16 * 2) * tilesPerRow + (col16 * 2);
     return (u16)baseTile;
 }
@@ -28,6 +28,7 @@ static void tulisTile16KeBg(u16* mapPtr, int mapWidthTiles, int mapX16, int mapY
                            int sheetWidthPx, int col16, int row16, int palBank) {
     u16 t0 = ambilTileIndex16(sheetWidthPx, col16, row16);
     int tilesPerRow = sheetWidthPx / 8;
+    if (tilesPerRow <= 0) tilesPerRow = 16;
 
     int x0 = mapX16 * 2;
     int y0 = mapY16 * 2;
@@ -48,49 +49,44 @@ void tidurGantiHari(void) {
     for (int y = 0; y < GRID_H; y++) {
         for (int x = 0; x < GRID_W; x++) {
             if (kebun[y][x] == 3) {
-                kebun[y][x] = 4; // Tanaman siap panen
+                kebun[y][x] = 4;
             }
         }
     }
 }
 
 void gambarKebunGrafis(u16* bgMap, u16* cropMap) {
-    // Bersihkan map tanaman
     for (int i = 0; i < 32 * 24; i++) {
         cropMap[i] = 0;
     }
 
-    int offsetX = 4; // Tengah layar 256px (16 tile * 16px = 256px, geser 4 petak = 64px)
-    int offsetY = 3; // Tengah layar 192px
+    int offsetX = 4;
+    int offsetY = 3;
+    int sheetW = 128;
 
     for (int y = 0; y < GRID_H; y++) {
         for (int x = 0; x < GRID_W; x++) {
             int gx = offsetX + x;
             int gy = offsetY + y;
 
-            // Default: rumput (kolom 0, baris 0 di tileset.png)
             int tCol = 0, tRow = 0;
-
             if (kebun[y][x] >= 1) {
-                // Tanah dicangkul / ditanami (geser ke kolom 1, baris 0)
                 tCol = 1;
                 tRow = 0;
             }
             if (kebun[y][x] == 3) {
-                // Tanah basah/disiram (kolom 2, baris 0)
                 tCol = 2;
                 tRow = 0;
             }
 
-            tulisTile16KeBg(bgMap, 32, gx, gy, tilesetBitmapLen ? (tilesetTilesLen / 32) * 8 : 128, tCol, tRow, 0);
+            tulisTile16KeBg(bgMap, 32, gx, gy, sheetW, tCol, tRow, 0);
 
-            // Gambar tanaman jika ada bibit (2), disiram (3), atau siap panen (4)
             if (kebun[y][x] >= 2) {
                 int pCol = 0, pRow = 0;
                 if (kebun[y][x] == 3) pCol = 1;
                 if (kebun[y][x] == 4) pCol = 2;
 
-                tulisTile16KeBg(cropMap, 32, gx, gy, 128, pCol, pRow, 1);
+                tulisTile16KeBg(cropMap, 32, gx, gy, sheetW, pCol, pRow, 1);
             }
         }
     }
@@ -114,7 +110,6 @@ void gambarLayarBawah(PrintConsole* bottom) {
 int main(void) {
     PrintConsole bottomScreen;
 
-    // Layar Atas: BG2 (tanah/rumput), BG3 (tanaman), OAM Sprite (karakter)
     videoSetMode(MODE_0_2D | DISPLAY_SPR_ACTIVE | DISPLAY_SPR_1D);
     videoSetModeSub(MODE_0_2D);
 
@@ -122,28 +117,22 @@ int main(void) {
     vramSetBankB(VRAM_B_MAIN_SPRITE);
     vramSetBankC(VRAM_C_SUB_BG);
 
-    // BG2: Kebun dasar (tileset)
     int bgKebun = bgInit(2, BgType_Text4bpp, BgSize_T_256x256, 28, 0);
-    // BG3: Tanaman di atas tanah (plants)
     int bgTanaman = bgInit(3, BgType_Text4bpp, BgSize_T_256x256, 29, 2);
     bgSetPriority(bgKebun, 2);
     bgSetPriority(bgTanaman, 1);
 
-    // Salin tile & palet tileset ke BG2
     dmaCopy(tilesetTiles, bgGetGfxPtr(bgKebun), tilesetTilesLen);
     dmaCopy(tilesetPal, BG_PALETTE, tilesetPalLen);
 
-    // Salin tile & palet tanaman ke BG3 (mulai di palette bank 1 = slot 16*2)
     dmaCopy(plantsTiles, bgGetGfxPtr(bgTanaman), plantsTilesLen);
     dmaCopy(plantsPal, &BG_PALETTE[16], plantsPalLen);
 
-    // Inisialisasi Sprite OAM untuk karakter (16x16, 4bpp)
     oamInit(&oamMain, SpriteMapping_1D_32, false);
-    u16* sprGfx = oamAllocateGfx(&oamMain, SpriteSize_16x16, SpriteColorFormat_256Color);
+    u16* sprGfx = oamAllocateGfx(&oamMain, SpriteSize_16x16, SpriteColorFormat_4bpp);
     dmaCopy(playerTiles, sprGfx, 16 * 16 / 2);
     dmaCopy(playerPal, SPRITE_PALETTE, playerPalLen);
 
-    // Konsol teks di Layar Bawah
     consoleInit(&bottomScreen, 3, BgType_Text4bpp, BgSize_T_256x256, 31, 0, false, true);
 
     u16* kebunMap = bgGetMapPtr(bgKebun);
@@ -151,7 +140,7 @@ int main(void) {
 
     bool update = true;
 
-    while (pmMainLoop()) {
+    while (1) {
         swiWaitForVBlank();
         scanKeys();
         uint32_t keys = keysDown();
@@ -194,10 +183,10 @@ int main(void) {
             oamSet(&oamMain,
                    0,
                    screenX, screenY,
-                   0, // prioritas di atas BG2 & BG3
-                   0, // palette slot 0
+                   0,
+                   0,
                    SpriteSize_16x16,
-                   SpriteColorFormat_256Color,
+                   SpriteColorFormat_4bpp,
                    sprGfx,
                    -1,
                    false,
