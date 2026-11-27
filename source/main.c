@@ -15,33 +15,18 @@ int alat = 0; // 0: Cangkul, 1: Bibit, 2: Siram, 3: Panen
 int hari = 1;
 int uang = 100;
 
-const char* namaAlat[] = {"CANGKUL", "BIBIT (10G)", "SIRAM", "PANEN"};
-
-static u16 ambilTileIndex16(int sheetWidthPx, int col16, int row16) {
-    int tilesPerRow = sheetWidthPx / 8;
-    if (tilesPerRow <= 0) tilesPerRow = 16;
-    int baseTile = (row16 * 2) * tilesPerRow + (col16 * 2);
-    return (u16)baseTile;
-}
+const char* namaAlat[] = {"CANGKUL", "BIBIT 10G", "SIRAM", "PANEN"};
 
 static void tulisTile16KeBg(u16* mapPtr, int mapWidthTiles, int mapX16, int mapY16,
-                           int sheetWidthPx, int col16, int row16, int palBank) {
-    u16 t0 = ambilTileIndex16(sheetWidthPx, col16, row16);
-    int tilesPerRow = sheetWidthPx / 8;
-    if (tilesPerRow <= 0) tilesPerRow = 16;
-
+                           int tilesPerRow8, int col16, int row16, int palBank) {
+    int baseTile = (row16 * 2) * tilesPerRow8 + (col16 * 2);
     int x0 = mapX16 * 2;
     int y0 = mapY16 * 2;
 
-    u16 attr00 = (u16)((t0) | (palBank << 12));
-    u16 attr10 = (u16)((t0 + 1) | (palBank << 12));
-    u16 attr01 = (u16)((t0 + tilesPerRow) | (palBank << 12));
-    u16 attr11 = (u16)((t0 + tilesPerRow + 1) | (palBank << 12));
-
-    mapPtr[y0 * mapWidthTiles + x0] = attr00;
-    mapPtr[y0 * mapWidthTiles + x0 + 1] = attr10;
-    mapPtr[(y0 + 1) * mapWidthTiles + x0] = attr01;
-    mapPtr[(y0 + 1) * mapWidthTiles + x0 + 1] = attr11;
+    mapPtr[y0 * mapWidthTiles + x0]             = (u16)((baseTile)                  | (palBank << 12));
+    mapPtr[y0 * mapWidthTiles + x0 + 1]         = (u16)((baseTile + 1)              | (palBank << 12));
+    mapPtr[(y0 + 1) * mapWidthTiles + x0]     = (u16)((baseTile + tilesPerRow8)     | (palBank << 12));
+    mapPtr[(y0 + 1) * mapWidthTiles + x0 + 1] = (u16)((baseTile + tilesPerRow8 + 1) | (palBank << 12));
 }
 
 void tidurGantiHari(void) {
@@ -49,7 +34,7 @@ void tidurGantiHari(void) {
     for (int y = 0; y < GRID_H; y++) {
         for (int x = 0; x < GRID_W; x++) {
             if (kebun[y][x] == 3) {
-                kebun[y][x] = 4; // Tanaman tumbuh siap panen
+                kebun[y][x] = 4;
             }
         }
     }
@@ -57,12 +42,18 @@ void tidurGantiHari(void) {
 
 void gambarKebunGrafis(u16* bgMap, u16* cropMap) {
     for (int i = 0; i < 32 * 24; i++) {
+        bgMap[i] = 0;
         cropMap[i] = 0;
     }
 
     int offsetX = 4;
     int offsetY = 3;
-    int sheetW = 128;
+
+    // Hitung jumlah tile 8x8 per baris berdasarkan panjang data tilesetTiles (4bpp = 32 bytes/tile)
+    int totalTiles8 = tilesetTilesLen / 32;
+    int tilesPerRow8 = 16; // default 128px / 8px
+    if (totalTiles8 >= 256) tilesPerRow8 = 16;
+    if (totalTiles8 >= 512) tilesPerRow8 = 16;
 
     for (int y = 0; y < GRID_H; y++) {
         for (int x = 0; x < GRID_W; x++) {
@@ -79,14 +70,14 @@ void gambarKebunGrafis(u16* bgMap, u16* cropMap) {
                 tRow = 0;
             }
 
-            tulisTile16KeBg(bgMap, 32, gx, gy, sheetW, tCol, tRow, 0);
+            tulisTile16KeBg(bgMap, 32, gx, gy, tilesPerRow8, tCol, tRow, 0);
 
             if (kebun[y][x] >= 2) {
                 int pCol = 0, pRow = 0;
                 if (kebun[y][x] == 3) pCol = 1;
                 if (kebun[y][x] == 4) pCol = 2;
 
-                tulisTile16KeBg(cropMap, 32, gx, gy, sheetW, pCol, pRow, 1);
+                tulisTile16KeBg(cropMap, 32, gx, gy, 16, pCol, pRow, 1);
             }
         }
     }
@@ -96,15 +87,15 @@ void gambarLayarBawah(PrintConsole* bottom) {
     consoleSelect(bottom);
     consoleClear();
     printf("=== MINI VALLEY DS ===\n");
-    printf("Hari: %d   |   Uang: %d G\n", hari, uang);
-    printf("------------------------------\n");
-    printf("Alat: [ %s ]\n\n", namaAlat[alat]);
-    printf("D-Pad : Jalan\n");
-    printf("A     : Cangkul/Tanam/Siram/Panen\n");
-    printf("L / R : Ganti Alat\n\n");
-    printf("==============================\n");
-    printf("  [ TAP LAYAR UNTUK TIDUR ]   \n");
-    printf("==============================\n");
+    printf("Hari:%d | Uang:%dG\n", hari, uang);
+    printf("----------------------\n");
+    printf("Alat : [%s]\n\n", namaAlat[alat]);
+    printf("D-Pad: Jalan\n");
+    printf("A    : Aksi Kebun\n");
+    printf("L/R  : Ganti Alat\n\n");
+    printf("======================\n");
+    printf("[TAP LAYAR = TIDUR]\n");
+    printf("======================\n");
 }
 
 int main(void) {
