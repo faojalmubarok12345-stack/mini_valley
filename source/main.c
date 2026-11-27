@@ -129,7 +129,7 @@ int main(void) {
     dmaCopy(plantsPal, &BG_PALETTE[16], plantsPalLen);
 
     oamInit(&oamMain, SpriteMapping_1D_32, false);
-    u16* sprGfx = oamAllocateGfx(&oamMain, SpriteSize_16x16, SpriteColorFormat_16Colors);
+    u16* sprGfx = oamAllocateGfx(&oamMain, SpriteSize_16x16, SpriteColorFormat_16Color);
     dmaCopy(playerTiles, sprGfx, 16 * 16 / 2);
     dmaCopy(playerPal, SPRITE_PALETTE, playerPalLen);
 
@@ -186,7 +186,7 @@ int main(void) {
                    0,
                    0,
                    SpriteSize_16x16,
-                   SpriteColorFormat_16Colors,
+                   SpriteColorFormat_16Color,
                    sprGfx,
                    -1,
                    false,
