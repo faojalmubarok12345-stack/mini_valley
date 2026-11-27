@@ -1,10 +1,10 @@
 # Nama ROM hasil build (.nds)
 TARGET		:= mini-valley-ds
 
-# Folder sumber kode & aset
-SOURCES		:= source
-DATA		:= data
-GFX		:= gfx
+# Variabel folder resmi BlocksDS
+SOURCEDIRS	:= source
+GFXDIRS		:= gfx
+BINDIRS		:= data
 BUILD		:= build
 
 # Toolchain BlocksDS / Wonderful
